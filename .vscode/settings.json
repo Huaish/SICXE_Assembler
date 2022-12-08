@@ -95,7 +95,9 @@
         "stop_token": "cpp",
         "cfenv": "cpp",
         "cinttypes": "cpp",
-        "list": "cpp"
+        "list": "cpp",
+        "typeindex": "cpp",
+        "source_location": "cpp"
     },
     "editor.formatOnSave": true
 }

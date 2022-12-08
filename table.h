@@ -1,6 +1,11 @@
 #pragma once
+#include "color.h"
+#include "table.h"
+#include <cstdint>
+#include <iostream>
 #include <map>
 #include <string>
+#include <vector>
 
 using namespace std;
 

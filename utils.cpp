@@ -1,6 +1,6 @@
 #include "utils.h"
 #include "table.h"
-#include <iostream>
+#include <fstream>
 
 using namespace std;
 

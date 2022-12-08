@@ -1,3 +1,4 @@
+#include "SICXE.h"
 #include "color.h"
 #include "table.h"
 #include "utils.h"
@@ -12,19 +13,6 @@ using namespace std;
 
 string NAME;
 int STARTLOC, ENDLOC, STARTEXEC;
-
-void printLine(ofstream& fout, Source sourceLine)
-{
-    fout << setw(4) << setfill('0') << sethex << sourceLine.loc;
-    fout << setw(4) << setfill(' ') << "";
-    fout << setw(8) << setfill(' ') << left << sourceLine.block;
-    fout << setw(8) << setfill(' ') << left << sourceLine.label;
-    fout << setw(8) << setfill(' ') << left << sourceLine.mnemonic;
-    fout << setw(12) << setfill(' ') << left
-         << sourceLine.operand1 + (sourceLine.operand2.length() > 0 ? "," : " ") + sourceLine.operand2;
-    fout << setw(8) << setfill(' ') << sethex << left << sourceLine.objectCode;
-    fout << endl;
-}
 
 Source parseLine(string line, int loc)
 {
@@ -88,41 +76,17 @@ Source parseLine(string line, int loc)
     return Source(loc, length, label, mnemonic, opcode, operand1, operand2, objectCode);
 }
 
-void pass1(string fileName)
+void printLine(ofstream& fout, Source sourceLine)
 {
-    ifstream fin;
-    fin.open(fileName);
-    ofstream fout;
-    fout.open("pass1.txt");
-
-    string inputStr = "";
-    int loc = 0;
-    while (getline(fin, inputStr)) {
-        boost::to_upper(inputStr);
-        if (inputStr[0] == '.') // comment
-            continue;
-        Source sourceLine;
-        try {
-            sourceLine = parseLine(inputStr, loc);
-            loc += sourceLine.length;
-            if (sourceLine.mnemonic == "START") {
-                NAME = sourceLine.label;
-                loc = stoi(sourceLine.operand1);
-                STARTLOC = loc;
-            } else if (sourceLine.mnemonic == "END") {
-                ENDLOC = loc;
-            }
-            if (sourceLine.label != "")
-                addSymbol(sourceLine.label, sourceLine.loc);
-
-            printLine(fout, sourceLine);
-        } catch (const char* msg) {
-            cout << Red << msg << RESET << endl;
-            return;
-        }
-    }
-    fin.close();
-    fout.close();
+    fout << setw(4) << setfill('0') << sethex << sourceLine.loc;
+    fout << setw(4) << setfill(' ') << "";
+    fout << setw(8) << setfill(' ') << left << sourceLine.block;
+    fout << setw(8) << setfill(' ') << left << sourceLine.label;
+    fout << setw(8) << setfill(' ') << left << sourceLine.mnemonic;
+    fout << setw(12) << setfill(' ') << left
+         << sourceLine.operand1 + (sourceLine.operand2.length() > 0 ? "," : " ") + sourceLine.operand2;
+    fout << setw(8) << setfill(' ') << sethex << left << sourceLine.objectCode;
+    fout << endl;
 }
 
 string genObjCode(char record, int loc, vector<string> objList)
@@ -159,6 +123,40 @@ string genObjCode(char record, int loc, vector<string> objList)
     ss << objCode << endl;
 
     return ss.str();
+}
+
+void pass1(string fileName)
+{
+    ifstream fin;
+    fin.open(fileName);
+    ofstream fout;
+
+    string inputStr = "";
+    int loc = 0;
+    while (getline(fin, inputStr)) {
+        boost::to_upper(inputStr);
+        if (inputStr[0] == '.') // comment
+            continue;
+        Source sourceLine;
+        try {
+            sourceLine = parseLine(inputStr, loc);
+            loc += sourceLine.length;
+            if (sourceLine.mnemonic == "START") {
+                NAME = sourceLine.label;
+                loc = stoi(sourceLine.operand1);
+                STARTLOC = loc;
+            } else if (sourceLine.mnemonic == "END") {
+                ENDLOC = loc;
+            }
+            if (sourceLine.label != "")
+                addSymbol(sourceLine.label, sourceLine.loc);
+
+        } catch (const char* msg) {
+            cout << Red << msg << RESET << endl;
+            return;
+        }
+    }
+    fin.close();
 }
 
 void pass2(string fileName)

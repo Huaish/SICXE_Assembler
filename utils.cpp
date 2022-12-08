@@ -40,17 +40,9 @@ string strToObjCode(string str)
     else if (str[0] == 'X')
         str = str.substr(2, str.length() - 3);
     for (int i = 0; i < str.length(); i++)
-        ss << hex << (int)str[i];
+        ss << sethex << (int)str[i];
     string result = ss.str();
     return string(6 - result.length(), '0') + result;
-}
-
-string hexToStr(int n, int size)
-{
-    stringstream ss;
-    ss << sethex << n;
-    string result = ss.str();
-    return result + string(size - result.length(), '0');
 }
 
 int handleDirective(string ditective, string operand, string& objectCode)

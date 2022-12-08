@@ -120,6 +120,6 @@ void printSymbolTable()
     cout << "Name\t\tValue" << endl;
 
     for (map<string, LABEL>::iterator it = symboltable.begin(); it != symboltable.end(); it++) {
-        cout << it->first << "\t\t" << it->second.address << endl;
+        cout << it->first << "\t\t" << hex << it->second.address << endl;
     }
 }

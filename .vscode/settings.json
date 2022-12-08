@@ -96,5 +96,6 @@
         "cfenv": "cpp",
         "cinttypes": "cpp",
         "list": "cpp"
-    }
+    },
+    "editor.formatOnSave": true
 }

@@ -11,6 +11,7 @@
 using namespace std;
 
 string NAME;
+int STARTLOC, ENDLOC, STARTEXEC;
 
 void printLine(ofstream& fout, Source sourceLine)
 {
@@ -21,12 +22,13 @@ void printLine(ofstream& fout, Source sourceLine)
     fout << setw(8) << setfill(' ') << left << sourceLine.mnemonic;
     fout << setw(12) << setfill(' ') << left
          << sourceLine.operand1 + (sourceLine.operand2.length() > 0 ? "," : " ") + sourceLine.operand2;
-    fout << setw(8) << setfill(' ') << sethex << sourceLine.objectCode;
+    fout << setw(8) << setfill(' ') << sethex << left << sourceLine.objectCode;
     fout << endl;
 }
 
 Source parseLine(string line, int loc)
 {
+    int length = 0;
     string label = "", mnemonic = "";
     OPCODE opcode;
     string operand1 = "", operand2 = "", objectCode = "";
@@ -53,13 +55,13 @@ Source parseLine(string line, int loc)
                 if (format4) {
                     opcode.format = 4;
                 }
-                loc = loc + opcode.format;
+                length = opcode.format;
                 step = "operand";
             } else if (directiveTable[token].exist) {
                 string operand = tokens.empty() ? "" : tokens.front();
                 mnemonic = token;
                 operand1 = operand;
-                loc = loc + handleDirective(token, operand, objectCode);
+                length = handleDirective(token, operand, objectCode);
                 step = "end";
             } else {
                 if (label.empty()) {
@@ -83,7 +85,7 @@ Source parseLine(string line, int loc)
         }
     }
 
-    return Source(loc, label, mnemonic, opcode, operand1, operand2, objectCode);
+    return Source(loc, length, label, mnemonic, opcode, operand1, operand2, objectCode);
 }
 
 void pass1(string fileName)
@@ -97,14 +99,23 @@ void pass1(string fileName)
     int loc = 0;
     while (getline(fin, inputStr)) {
         boost::to_upper(inputStr);
+        if (inputStr[0] == '.') // comment
+            continue;
         Source sourceLine;
         try {
             sourceLine = parseLine(inputStr, loc);
-            loc = sourceLine.loc;
-            if (sourceLine.mnemonic == "START")
+            loc += sourceLine.length;
+            if (sourceLine.mnemonic == "START") {
                 NAME = sourceLine.label;
+                loc = stoi(sourceLine.operand1);
+                STARTLOC = loc;
+            } else if (sourceLine.mnemonic == "END") {
+                ENDLOC = loc;
+            }
             if (sourceLine.label != "")
                 addSymbol(sourceLine.label, sourceLine.loc);
+
+            printLine(fout, sourceLine);
         } catch (const char* msg) {
             cout << Red << msg << RESET << endl;
             return;
@@ -114,29 +125,100 @@ void pass1(string fileName)
     fout.close();
 }
 
+string genObjCode(char record, int loc, vector<string> objList)
+{
+
+    stringstream ss;
+    if (record == 'H') {
+        ss << record << "^";
+        ss << setw(6) << setfill(' ') << left << NAME << "^";
+        ss << setw(6) << setfill('0') << sethex << STARTLOC << "^";
+        ss << setw(6) << setfill('0') << sethex << ENDLOC - STARTLOC << endl;
+        return ss.str();
+    } else if (record == 'E') {
+        ss << record << "^";
+        ss << setw(6) << setfill('0') << sethex << STARTEXEC << endl;
+        return ss.str();
+    }
+
+    if (objList.size() == 0)
+        return "";
+
+    int size = 0;
+    string objCode = "";
+    for (int i = 0; i < objList.size(); i++) {
+        if (objList[i] == "")
+            continue;
+        size += objList[i].length() / 2;
+        objCode += "^" + objList[i];
+    }
+
+    ss << record << "^";
+    ss << setw(6) << setfill('0') << sethex << loc << "^";
+    ss << setw(2) << setfill('0') << sethex << size;
+    ss << objCode << endl;
+
+    return ss.str();
+}
+
 void pass2(string fileName)
 {
     ifstream fin2;
     fin2.open(fileName);
-    ofstream fout2;
+    ofstream fout1, fout2;
+    fout1.open("objcode.txt");
     fout2.open("pass2.txt");
+
+    vector<string> objList;
 
     string inputStr = "";
     int loc = 0;
+    Source sourceLine;
 
     int opcode = 0;
     fout2 << "Loc\t\tBlock\t\t\tSource Statement\tObject Code" << endl;
     fout2 << "----------------------------------------------------------------" << endl;
     while (getline(fin2, inputStr)) {
         boost::to_upper(inputStr);
-        Source sourceLine = parseLine(inputStr, loc);
-        loc = sourceLine.loc;
-        if (optable[sourceLine.mnemonic].exist) {
-            sourceLine.ObjectCode();
+        if (inputStr[0] == '.') // comment
+            continue;
+        sourceLine = parseLine(inputStr, sourceLine.loc + sourceLine.length);
+        if (sourceLine.mnemonic == "START") {
+            loc = stoi(sourceLine.operand1);
+            fout1 << genObjCode('H', loc, objList);
+        } else if (sourceLine.mnemonic == "END") {
+            if (objList.size() > 0) {
+                fout1 << genObjCode('T', loc, objList);
+                objList.clear();
+            }
+
+            if (symboltable[sourceLine.operand1].exist) {
+                STARTEXEC = symboltable[sourceLine.operand1].address;
+                fout1 << genObjCode('E', loc, objList);
+            } else {
+                // throw("Invalid operand");
+            }
+        } else if (sourceLine.mnemonic == "RESW" || sourceLine.mnemonic == "RESB") {
+            fout1 << genObjCode('T', loc, objList);
+            objList.clear();
+            loc = sourceLine.loc + sourceLine.length;
+        } else {
+            if (!directiveTable[sourceLine.mnemonic].exist)
+                sourceLine.ObjectCode();
+            if (sourceLine.objectCode.length() > 0) {
+                objList.push_back(sourceLine.objectCode);
+                if (objList.size() == 10) {
+                    fout1 << genObjCode('T', loc, objList);
+                    objList.clear();
+                    loc = sourceLine.loc + sourceLine.length;
+                }
+            }
         }
+
         printLine(fout2, sourceLine);
     }
     fin2.close();
+    fout1.close();
     fout2.close();
 }
 

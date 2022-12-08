@@ -1,18 +1,14 @@
-#pragma once
 #include "table.h"
+#include "util.h"
 #include <iostream>
 #include <regex>
 #include <sstream>
 #include <string>
 #include <vector>
+
 using namespace std;
 
 extern string BASE;
-#define byte unsigned char;
-
-vector<string> getTokens(string str, char delim);
-int handleDirective(string ditective, string operand, string& objectCode);
-ostream& sethex(ostream& stream);
 
 class Source {
 
@@ -23,17 +19,17 @@ private:
     bool indexed;
 
     int flag(int n, int i, int x, int b, int p, int e) { return n << 5 | i << 4 | x << 3 | b << 2 | p << 1 | e; }
+    unsigned char twosComplent(int val) { return ~val + 1; }
     string hexToStr(int n, int size)
     {
         stringstream ss;
         ss << sethex << n;
         string result = ss.str();
-        return string(size - result.length(), '0') + result;
+        return result + string(size - result.length(), '0');
     }
 
 public:
     int loc;
-    int length;
     string label;
     string mnemonic;
     OPCODE opcode;
@@ -45,7 +41,6 @@ public:
     Source()
     {
         loc = 0;
-        length = 0;
         block = "";
         label = "";
         operand1 = "";
@@ -56,16 +51,15 @@ public:
         indexed = false;
     }
 
-    Source(int loc, int length, string label, string mnemonic, OPCODE opcode, string operand1, string operand2,
-        string objectCode)
+    Source(int loc, string label, string mnemonic, OPCODE opcode, string operand1, string operand2, string objectCode)
     {
         this->loc = loc;
-        this->length = length;
         this->label = label;
         this->mnemonic = mnemonic;
         this->opcode = opcode;
         this->operand1 = operand1;
         this->operand2 = operand2;
+        this->objectCode = objectCode;
         immediate = false;
         indirect = false;
         extended = false;
@@ -81,11 +75,7 @@ public:
 
         if (operand2.length() > 0) {
             this->indexed = true;
-        } else {
-            this->indexed = false;
         }
-
-        this->objectCode = objectCode;
     }
 
     string format1() { return hexToStr(opcode.opcode, 2); }
@@ -108,13 +98,8 @@ public:
         int pc = loc + 3;
         int base = symboltable[BASE].address;
         int target = 0;
-        if (opcode.numOfOperands == 0) {
-            obj = opcode.opcode;
-            obj <<= 4;
-            obj += flag(0, 0, 0, 0, 0, 0);
-            obj <<= 12;
-            return hexToStr(obj, 6);
-        }
+        if (opcode.numOfOperands == 0)
+            return hexToStr(opcode.opcode, 6);
 
         if (immediate) {
             if (symboltable[operand1].exist) {
@@ -122,6 +107,8 @@ public:
                 // pc relative
                 if (target - pc >= -2048 && target - pc <= 2047) {
                     disp = target - pc;
+                    if (target < 0)
+                        disp = twosComplent(disp);
                     disp = disp & 0b0000111111111111;
                     obj = optable[mnemonic].opcode;
                     obj <<= 4;
@@ -144,6 +131,8 @@ public:
             } else {
                 // immediate
                 disp = stoi(operand1);
+                if (disp < 0)
+                    disp = twosComplent(disp);
                 disp = disp & 0b0000111111111111;
                 obj = optable[mnemonic].opcode;
                 obj <<= 4;
@@ -159,6 +148,8 @@ public:
                 // pc relative
                 if (target - pc >= -2048 && target - pc <= 2047) {
                     disp = target - pc;
+                    if (target < 0)
+                        disp = twosComplent(disp);
                     disp = disp & 0b0000111111111111;
                     obj = optable[mnemonic].opcode;
                     obj <<= 4;
@@ -190,6 +181,8 @@ public:
                 // pc relative
                 if (target - pc >= -2048 && target - pc <= 2047) {
                     disp = target - pc;
+                    if (target < 0)
+                        disp = twosComplent(disp);
                     disp = disp & 0b0000111111111111;
                     obj = optable[mnemonic].opcode;
                     obj <<= 4;
@@ -230,6 +223,8 @@ public:
                 obj += target;
             } else {
                 int disp = stoi(operand1);
+                if (disp < 0)
+                    disp = twosComplent(disp);
                 disp = disp & 0b00000000000011111111111111111111;
                 obj = opcode.opcode;
                 obj <<= 4;
@@ -279,6 +274,7 @@ public:
         } else if (opcode.format == 4) {
             objectCode = format4();
         }
+
         return objectCode;
     }
 };

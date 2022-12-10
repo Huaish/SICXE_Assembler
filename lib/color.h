@@ -69,3 +69,4 @@
 #define On_IPurple "\033[0;105m" // Purple
 #define On_ICyan "\033[0;106m" // Cyan
 #define On_IWhite "\033[0;107m" // White
+#define On_Orange "\033[0;48;5;208m" // Orange

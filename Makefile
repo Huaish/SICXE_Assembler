@@ -1,7 +1,7 @@
 CC := g++
 LDFLAGS := -lm
 TARGETS := main
-main_OBJ := utils.o table.o
+main_OBJ :=
 
 .PHONY:all
 all:$(TARGETS)
@@ -9,12 +9,14 @@ all:$(TARGETS)
 .SECONDEXPANSION:
 
 $(TARGETS):$$($$@_OBJ)
-	$(CC) $@.cpp $^ -o $@ $(LDFLAGS)
+	mkdir -p ./build
+	cd build && $(CC) ../src/$@.cpp $^ -o $@ $(LDFLAGS)
 
-%.o:%.cpp
-	$(CC) -c $^ -o $@
+%.o:src/%.cpp
+	mkdir -p ./build
+	$(CC) -c $^ -o build/$@
 
 
 .PHONY:clean
 clean:
-	rm -rf $(TARGETS) $(foreach targ,$(TARGETS),$(foreach obj, $($(targ)_OBJ), $(obj)))
+	cd build && rm -rf $(TARGETS) $(foreach targ,$(TARGETS),$(foreach obj, $($(targ)_OBJ), $(obj)))

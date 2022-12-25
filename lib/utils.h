@@ -6,12 +6,52 @@
 #include <regex>
 #include <sstream>
 #include <string>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
 
 using namespace std;
 
 #define byte unsigned char;
+
+class File {
+public:
+    string fullPath;
+    string dir;
+    string name;
+
+    File()
+    {
+        fullPath = "";
+        dir = "";
+        name = "";
+    }
+
+    File(string fullPath)
+    {
+        this->fullPath = fullPath;
+        int pos = fullPath.find_last_of('/');
+        if (pos == -1) {
+            dir = "";
+            name = fullPath;
+        } else {
+            dir = fullPath.substr(0, pos) + "/";
+            name = fullPath.substr(pos + 1, fullPath.length() - pos - 1);
+        }
+    }
+
+    bool create_directories()
+    {
+        int status = mkdir(dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+        if (status == -1) {
+            if (errno != EEXIST) {
+                cout << "Error: " << strerror(errno) << endl;
+                return false;
+            }
+        }
+        return true;
+    }
+};
 
 vector<string> getTokens(string str, char delim);
 ostream& sethex(ostream& stream);
@@ -52,18 +92,26 @@ void printFile(string filename, string title, string color)
     }
 }
 
-bool getOption(int argc, char* argv[], string& fileName, bool& isPrint)
+bool getOption(int argc, char* argv[], File& input, File& output, bool& isPrint)
 {
-    const struct option longopts[] = { { "input", required_argument, NULL, 'i' }, { "help", no_argument, NULL, 'h' },
-        { "print", no_argument, NULL, 'p' } };
+    // i:o:ph
+    const struct option longopts[]
+        = { { "input", required_argument, NULL, 'i' }, { "dir", required_argument, NULL, 'd' },
+              { "help", no_argument, NULL, 'h' }, { "print", no_argument, NULL, 'p' } };
 
     int opt, opterr = 0;
     isPrint = false;
 
-    while ((opt = getopt_long(argc, argv, "i:ph", longopts, NULL)) != -1) {
+    input = File("src/input.asm");
+    output = File("result/");
+
+    while ((opt = getopt_long(argc, argv, "i:d:ph", longopts, NULL)) != -1) {
         switch (opt) {
         case 'i':
-            fileName = optarg;
+            input = File(optarg);
+            break;
+        case 'd':
+            output = File(optarg);
             break;
         case 'p':
             isPrint = true;
@@ -81,6 +129,7 @@ bool getOption(int argc, char* argv[], string& fileName, bool& isPrint)
         case 'h':
             cout << "Usage: " << argv[0] << " [OPTION]..." << endl;
             cout << "  -i, --input FILE\tinput file" << endl;
+            cout << "  -d, --dir DIR\t\toutput directory" << endl;
             cout << "  -p, --print\t\tprint the output on the screen" << endl;
             cout << "  -h, --help\t\tprint this help" << endl;
             return 0;

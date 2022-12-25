@@ -140,14 +140,15 @@ string genObjCode(char record, int loc)
     return "";
 }
 
-void pass1(string fileName)
+bool pass1(File input, File output)
 {
-    ifstream fin;
-    fin.open(fileName);
-    ofstream fout;
-    fout.open("result/symbolTable.txt");
+    ifstream fin(input.fullPath);
+    if (!output.create_directories()) {
+        cout << "Error: Cannot create output directory" << endl;
+        return false;
+    }
+    ofstream fout(output.dir + "symbolTable.txt");
 
-    // fout << On_Orange << "        Symbol Table        " << RESET << endl;
     fout << "Name\t\tValue" << endl;
     string inputStr = "";
     int loc = 0;
@@ -173,20 +174,20 @@ void pass1(string fileName)
 
         } catch (const char* msg) {
             cout << Red << msg << RESET << endl;
-            return;
+            return false;
         }
     }
     fin.close();
     fout.close();
+    return true;
 }
 
-void pass2(string inputFile)
+bool pass2(File input, File output)
 {
-    ifstream fin2;
-    fin2.open(inputFile);
+    ifstream fin2(input.fullPath);
     ofstream fout1, fout2;
-    fout1.open("result/objcode.txt");
-    fout2.open("result/objectCodeTable.txt");
+    fout1.open(output.dir + "objcode.txt");
+    fout2.open(output.dir + "objectCodeTable.txt");
 
     string inputStr = "";
     int loc = 0;
@@ -219,6 +220,7 @@ void pass2(string inputFile)
                 fout1 << genObjCode('E', loc);
             } else {
                 // throw("Invalid operand");
+                return false;
             }
         } else if (sourceLine.mnemonic == "RESW" || sourceLine.mnemonic == "RESB") {
             fout1 << genObjCode('T', loc);
@@ -247,28 +249,36 @@ void pass2(string inputFile)
     fin2.close();
     fout1.close();
     fout2.close();
+
+    return true;
 }
 
 int main(int argc, char** argv)
 {
-
-    string fileName = "src/input.asm";
+    string fileName = "../src/input.asm";
     bool isPrint = false;
-    if (!getOption(argc, argv, fileName, isPrint))
+    File input, output;
+    if (!getOption(argc, argv, input, output, isPrint))
         return 0;
 
     cout << Yellow << "Compiling " << fileName << RESET << endl;
     buildOpTable();
     buildRegTable();
     buildDirectiveTable();
-    pass1(fileName);
+    if (!pass1(input, output)) {
+        cout << Red << "Error: Cannot compile the file" << RESET << endl;
+        return 0;
+    }
     if (isPrint)
-        printFile("result/symbolTable.txt", "Symbol Table", On_Orange);
-    pass2(fileName);
+        printFile(output.dir + "symbolTable.txt", "Symbol Table", On_Orange);
+    if (!pass2(input, output)) {
+        cout << Red << "Error: Cannot compile the file" << RESET << endl;
+        return 0;
+    }
     if (isPrint)
-        printFile("result/objcode.txt", "Object Code", On_Cyan);
+        printFile(output.dir + "objcode.txt", "Object Code", On_Cyan);
 
     cout << Green << "Done!" << RESET << endl;
-    cout << "Check the output files in the results folder." << endl;
+    cout << "Check the output files in the " + output.dir + " folder." << endl;
     return 0;
 }

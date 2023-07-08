@@ -38,25 +38,15 @@ class File {
             name = fullPath.substr(pos + 1, fullPath.length() - pos - 1);
         }
     }
-
-    bool create_directories() {
-        int status = mkdir(dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-        if (status == -1) {
-            if (errno != EEXIST) {
-                cout << "Error: " << strerror(errno) << endl;
-                return false;
-            }
-        }
-        return true;
-    }
 };
 
 vector<string> getTokens(string str, char delim);
 ostream &sethex(ostream &stream);
 ostream &setdec(ostream &stream);
 void printFile(string filename, string title, string color);
-bool getOption(int argc, char *argv[], File &input, File &output,
-               bool &isPrint);
+bool getOption(int argc, char *argv[], File &input, File &output, bool &isPrint);
+bool isDecimal(const string &str);
+bool isHexadecimal(const string &str);
 bool isNumber(string str);
 
 ostream &sethex(ostream &stream) {
@@ -93,17 +83,18 @@ vector<string> getTokens(string str, char delim) {
 void printFile(string filename, string title, string color) {
     ifstream fin(filename);
     string line;
-    cout << color << "        " + title + "        " << RESET << endl;
+    cout << color << setw(38) << setfill(' ') << title;
+    cout << color << setw(34) << setfill(' ') << RESET << endl;
     while (getline(fin, line)) {
         cout << line << endl;
     }
 }
 
-bool getOption(int argc, char *argv[], File &input, File &output,
-               bool &isPrint) {
-    // i:o:ph
+bool getOption(int argc, char *argv[], File &input, File &output, bool &isPrint, int &mode) {
+    // i:o:m:ph
     const struct option longopts[] = {{"input", required_argument, NULL, 'i'},
-                                      {"dir", required_argument, NULL, 'd'},
+                                      {"output", required_argument, NULL, 'o'},
+                                      {"mode", required_argument, NULL, 'm'},
                                       {"help", no_argument, NULL, 'h'},
                                       {"print", no_argument, NULL, 'p'}};
 
@@ -111,35 +102,42 @@ bool getOption(int argc, char *argv[], File &input, File &output,
     isPrint = false;
 
     input = File("src/input.asm");
-    output = File("result/");
+    output = File("output.txt");
 
-    while ((opt = getopt_long(argc, argv, "i:d:ph", longopts, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "i:o:m:ph", longopts, NULL)) != -1) {
         switch (opt) {
         case 'i':
             input = File(optarg);
             break;
-        case 'd':
+        case 'o':
             output = File(optarg);
+            break;
+        case 'm':
+            if (isDecimal(optarg)) {
+                mode = stoi(optarg);
+            } else {
+                cout << "Error: mode must be a number." << endl;
+                return false;
+            }
             break;
         case 'p':
             isPrint = true;
             break;
         case '?':
             if (optopt == 'i')
-                cout << "Option -" << (char)optopt << " requires an argument."
-                     << endl;
+                cout << "Option -" << (char)optopt << " requires an argument." << endl;
             else if (isprint(optopt))
                 cout << "Unknown option -" << (char)optopt << "." << endl;
             else if (isprint(optopt))
                 cout << "Unknown option -" << (char)optopt << "." << endl;
             else
-                cout << "Unknown option character `-" << (char)optopt << "`."
-                     << endl;
+                cout << "Unknown option character `-" << (char)optopt << "`." << endl;
             return 0;
         case 'h':
             cout << "Usage: " << argv[0] << " [OPTION]..." << endl;
             cout << "  -i, --input FILE\tinput file" << endl;
-            cout << "  -d, --dir DIR\t\toutput directory" << endl;
+            cout << "  -o, --output FILE\toutput file" << endl;
+            cout << "  -m, --mode NUMBER\tmode" << endl;
             cout << "  -p, --print\t\tprint the output on the screen" << endl;
             cout << "  -h, --help\t\tprint this help" << endl;
             return 0;
@@ -151,34 +149,28 @@ bool getOption(int argc, char *argv[], File &input, File &output,
     return true;
 }
 
-bool isNumber(string str) {
-    for (int i = 0; i < str.length(); i++) {
-        if (!isdigit(str[i]))
-            return false;
+bool isDecimal(const string &str) {
+    try {
+        size_t pos;
+        std::stoi(str, &pos);
+        return pos == str.length();
+    } catch (const std::invalid_argument &) {
+        return false;
+    } catch (const std::out_of_range &) {
+        return false;
     }
-    return true;
 }
 
-string strToObjCode(string str, int &length) {
-    str = str.substr(1, str.length() - 1);
-    string objectCode = "";
-    if (str[0] == 'X') { // hex
-        length = (str.length() - 3) / 2;
-        objectCode = str.substr(2, str.length() - 3);
-    } else if (str[0] == 'C') { // char
-        length = str.length() - 3;
-        str = str.substr(2, str.length() - 3);
-        stringstream ss;
-        for (int i = 0; i < str.length(); i++)
-            ss << sethex << (int)str[i];
-        string result = ss.str();
-        if (result.length() > 6)
-            objectCode = result;
-        else
-            objectCode = string(6 - result.length(), '0') + result;
-    } else {
-        length = 0;
+bool isHexadecimal(const string &str) {
+    try {
+        size_t pos;
+        std::stoul(str, &pos, 16);
+        return pos == str.length();
+    } catch (const std::invalid_argument &) {
+        return false;
+    } catch (const std::out_of_range &) {
+        return false;
     }
-
-    return objectCode;
 }
+
+bool isNumber(string str) { return isDecimal(str) || isHexadecimal(str); }

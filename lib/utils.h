@@ -1,5 +1,6 @@
 #pragma once
 #include "table.h"
+#include <cctype>
 #include <fstream>
 #include <getopt.h>
 #include <iostream>
@@ -15,20 +16,18 @@ using namespace std;
 #define byte unsigned char;
 
 class File {
-public:
+  public:
     string fullPath;
     string dir;
     string name;
 
-    File()
-    {
+    File() {
         fullPath = "";
         dir = "";
         name = "";
     }
 
-    File(string fullPath)
-    {
+    File(string fullPath) {
         this->fullPath = fullPath;
         int pos = fullPath.find_last_of('/');
         if (pos == -1) {
@@ -40,8 +39,7 @@ public:
         }
     }
 
-    bool create_directories()
-    {
+    bool create_directories() {
         int status = mkdir(dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
         if (status == -1) {
             if (errno != EEXIST) {
@@ -54,18 +52,28 @@ public:
 };
 
 vector<string> getTokens(string str, char delim);
-ostream& sethex(ostream& stream);
+ostream &sethex(ostream &stream);
+ostream &setdec(ostream &stream);
+void printFile(string filename, string title, string color);
+bool getOption(int argc, char *argv[], File &input, File &output,
+               bool &isPrint);
+bool isNumber(string str);
 
-ostream& sethex(ostream& stream)
-{
+ostream &sethex(ostream &stream) {
     stream.unsetf(ios::dec | ios::oct);
     stream.setf(ios::hex | ios::uppercase | ios::right);
 
     return stream;
 }
 
-vector<string> getTokens(string str, char delim)
-{
+ostream &setdec(ostream &stream) {
+    stream.unsetf(ios::hex | ios::oct);
+    stream.setf(ios::dec | ios::uppercase | ios::right);
+
+    return stream;
+}
+
+vector<string> getTokens(string str, char delim) {
     str = regex_replace(str, regex("[\r\n]"), "");
     str = regex_replace(str, regex("\t"), " ");
     if (delim != ' ')
@@ -82,8 +90,7 @@ vector<string> getTokens(string str, char delim)
     return result;
 }
 
-void printFile(string filename, string title, string color)
-{
+void printFile(string filename, string title, string color) {
     ifstream fin(filename);
     string line;
     cout << color << "        " + title + "        " << RESET << endl;
@@ -92,12 +99,13 @@ void printFile(string filename, string title, string color)
     }
 }
 
-bool getOption(int argc, char* argv[], File& input, File& output, bool& isPrint)
-{
+bool getOption(int argc, char *argv[], File &input, File &output,
+               bool &isPrint) {
     // i:o:ph
-    const struct option longopts[]
-        = { { "input", required_argument, NULL, 'i' }, { "dir", required_argument, NULL, 'd' },
-              { "help", no_argument, NULL, 'h' }, { "print", no_argument, NULL, 'p' } };
+    const struct option longopts[] = {{"input", required_argument, NULL, 'i'},
+                                      {"dir", required_argument, NULL, 'd'},
+                                      {"help", no_argument, NULL, 'h'},
+                                      {"print", no_argument, NULL, 'p'}};
 
     int opt, opterr = 0;
     isPrint = false;
@@ -118,13 +126,15 @@ bool getOption(int argc, char* argv[], File& input, File& output, bool& isPrint)
             break;
         case '?':
             if (optopt == 'i')
-                cout << "Option -" << (char)optopt << " requires an argument." << endl;
+                cout << "Option -" << (char)optopt << " requires an argument."
+                     << endl;
             else if (isprint(optopt))
                 cout << "Unknown option -" << (char)optopt << "." << endl;
             else if (isprint(optopt))
                 cout << "Unknown option -" << (char)optopt << "." << endl;
             else
-                cout << "Unknown option character `-" << (char)optopt << "`." << endl;
+                cout << "Unknown option character `-" << (char)optopt << "`."
+                     << endl;
             return 0;
         case 'h':
             cout << "Usage: " << argv[0] << " [OPTION]..." << endl;
@@ -139,4 +149,36 @@ bool getOption(int argc, char* argv[], File& input, File& output, bool& isPrint)
     }
 
     return true;
+}
+
+bool isNumber(string str) {
+    for (int i = 0; i < str.length(); i++) {
+        if (!isdigit(str[i]))
+            return false;
+    }
+    return true;
+}
+
+string strToObjCode(string str, int &length) {
+    str = str.substr(1, str.length() - 1);
+    string objectCode = "";
+    if (str[0] == 'X') { // hex
+        length = (str.length() - 3) / 2;
+        objectCode = str.substr(2, str.length() - 3);
+    } else if (str[0] == 'C') { // char
+        length = str.length() - 3;
+        str = str.substr(2, str.length() - 3);
+        stringstream ss;
+        for (int i = 0; i < str.length(); i++)
+            ss << sethex << (int)str[i];
+        string result = ss.str();
+        if (result.length() > 6)
+            objectCode = result;
+        else
+            objectCode = string(6 - result.length(), '0') + result;
+    } else {
+        length = 0;
+    }
+
+    return objectCode;
 }

@@ -14,19 +14,17 @@ struct OPCODE {
     int format;
     int numOfOperands;
     bool exist;
-    OPCODE()
-    {
+    OPCODE() {
         opcode = 0;
         numOfOperands = 0;
         exist = false;
     }
 
-    OPCODE(unsigned int opcode, int format, int numOfOperands, bool exist)
-    {
+    OPCODE(unsigned int opcode, int format, int numOfOperands, bool exist) {
         this->opcode = opcode;
         this->format = format;
         this->numOfOperands = numOfOperands;
-        this->exist = exist;
+        this->exist = true;
     }
 };
 
@@ -34,8 +32,7 @@ struct REG {
     int num;
     bool exist;
     REG() { exist = false; }
-    REG(int num, bool exist)
-    {
+    REG(int num, bool exist) {
         this->num = num;
         this->exist = exist;
     }
@@ -45,25 +42,52 @@ struct DIRECTIVE {
     int size;
     bool exist;
     DIRECTIVE() { exist = false; }
-    DIRECTIVE(int size, bool exist)
-    {
+    DIRECTIVE(int size, bool exist) {
         this->size = size;
-        this->exist = exist;
+        this->exist = true;
     }
 };
 
 struct LABEL {
     int address;
     bool exist;
-    LABEL()
-    {
+    LABEL() {
         address = 0;
         exist = false;
     }
-    LABEL(int address, bool exist)
-    {
+    LABEL(int address, bool exist) {
         this->address = address;
-        this->exist = exist;
+        this->exist = true;
+    }
+};
+
+struct LITERAL {
+    int address;
+    bool exist;
+    string literal;
+    string objCode;
+    int length;
+    LITERAL() {
+        address = 0;
+        exist = false;
+        objCode = "";
+        length = 0;
+    }
+
+    LITERAL(string literal, string objCode, int length) {
+        this->address = 0;
+        this->literal = literal;
+        this->objCode = objCode;
+        this->length = length;
+        this->exist = true;
+    }
+
+    LITERAL(string literal, string objCode, int address, int length) {
+        this->address = address;
+        this->literal = literal;
+        this->objCode = objCode;
+        this->length = length;
+        this->exist = true;
     }
 };
 
@@ -71,14 +95,15 @@ typedef map<string, OPCODE> OPTABLE;
 typedef map<string, REG> REGTABLE;
 typedef map<string, LABEL> LABELTABLE;
 typedef map<string, DIRECTIVE> DIRECTIVETABLE;
+typedef map<string, LITERAL> LITERALTABLE;
 
 OPTABLE optable;
 REGTABLE regtable;
 LABELTABLE symboltable;
+LITERALTABLE literaltable;
 DIRECTIVETABLE directiveTable;
 
-void buildOpTable()
-{
+void buildOpTable() {
     optable["ADD"] = OPCODE(0x18, 3, 1, true);
     optable["ADDF"] = OPCODE(0x58, 3, 1, true);
     optable["ADDR"] = OPCODE(0x90, 2, 2, true);
@@ -140,8 +165,7 @@ void buildOpTable()
     optable["WD"] = OPCODE(0xDC, 3, 1, true);
 }
 
-void buildRegTable()
-{
+void buildRegTable() {
     regtable["A"] = REG(0, true);
     regtable["X"] = REG(1, true);
     regtable["L"] = REG(2, true);
@@ -153,8 +177,7 @@ void buildRegTable()
     regtable["SW"] = REG(9, true);
 }
 
-void buildDirectiveTable()
-{
+void buildDirectiveTable() {
     directiveTable["START"] = DIRECTIVE(0, true);
     directiveTable["END"] = DIRECTIVE(0, true);
     directiveTable["BYTE"] = DIRECTIVE(1, true);
@@ -163,14 +186,12 @@ void buildDirectiveTable()
     directiveTable["RESW"] = DIRECTIVE(3, true);
     directiveTable["BASE"] = DIRECTIVE(0, true);
     directiveTable["NOBASE"] = DIRECTIVE(0, true);
-    // directiveTable["EQU"] = DIRECTIVE(9, true);
-    // directiveTable["LTORG"] = DIRECTIVE(10, true);
+    directiveTable["EQU"] = DIRECTIVE(9, true);
+    directiveTable["LTORG"] = DIRECTIVE(10, true);
 }
 
-void addSymbol(string label, int loc)
-{
+void addSymbol(string label, int loc) {
     if (symboltable[label].exist) {
-        // throw("Error: Duplicate symbol " + label);
         cout << "\033[1;31m"
              << "Error: Duplicate symbol " << label << "\033[0m" << endl;
         return;
@@ -178,13 +199,31 @@ void addSymbol(string label, int loc)
     symboltable[label] = LABEL(loc, true);
 }
 
-void printSymbolTable()
-{
+void addLiteral(LITERAL literal) {
+    if (literaltable[literal.literal].exist) {
+        return;
+    }
+    literaltable[literal.literal] = literal;
+}
+
+void printSymbolTable() {
     cout << On_Orange << "        Symbol Table        " << RESET << endl;
 
     cout << "Name\t\tValue" << endl;
 
-    for (map<string, LABEL>::iterator it = symboltable.begin(); it != symboltable.end(); it++) {
+    for (map<string, LABEL>::iterator it = symboltable.begin();
+         it != symboltable.end(); it++) {
+        cout << it->first << "\t\t" << sethex << it->second.address << endl;
+    }
+}
+
+void printLiteralTable() {
+    cout << On_Orange << "        Literal Table        " << RESET << endl;
+
+    cout << "Name\t\tValue" << endl;
+
+    for (map<string, LITERAL>::iterator it = literaltable.begin();
+         it != literaltable.end(); it++) {
         cout << it->first << "\t\t" << sethex << it->second.address << endl;
     }
 }

@@ -1,25 +1,27 @@
-#include "../lib/color.h"
-#include "../lib/sicxe.h"
-#include "../lib/table.h"
-#include "../lib/utils.h"
+#include "lib/color.h"
+#include "lib/sicxe.h"
+#include "lib/table.h"
+#include "lib/utils.h"
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <fstream>
+#include <getopt.h>
 #include <iomanip>
 #include <iostream>
+#include <map>
+#include <regex>
 #include <sstream>
 #include <string>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <vector>
 
 using namespace std;
-using namespace sicxe;
 
-#define no_argument 0
-#define required_argument 1
-#define optional_argument 2
-
-enum STEP { LABEL, OPCODE_STEP, OPERAND, END };
-int MODE = 1; // 0: SIC, 1: SIC/XE
+enum STEP { STEP_LABEL, STEP_OPCODE, STEP_OPERAND, STEP_END };
+enum MODE { SIC_MODE, SICXE_MODE };
+int mode = SICXE_MODE;
 
 SICXE parseLine(string line, int loc, STATE state) {
     string statement = line;
@@ -31,29 +33,29 @@ SICXE parseLine(string line, int loc, STATE state) {
     vector<string> tokens = getTokens(line, ' ');
 
     string token = "";
-    STEP step = OPCODE_STEP;
+    STEP step = STEP_OPCODE;
 
-    while (!tokens.empty() && step != END) {
+    while (!tokens.empty() && step != STEP_END) {
         token = tokens.front();
         tokens.erase(tokens.begin());
         switch (step) {
-        case OPCODE_STEP: {
+        case STEP_OPCODE: {
             bool format4 = false;
             if (token[0] == '+') {
-                if (MODE == 0) {
+                if (mode == SIC_MODE) {
                     string errorMsg = "ERROR(Invalid mnemonic): " + token;
                     cout << Red << errorMsg << RESET << endl;
-                    SICXE result = SICXE(sicxe::ERROR, sicxe::STATEMENT, statement);
+                    SICXE result = SICXE(STATE_ERROR, TYPE_STATEMENT, statement);
                     result.errorMsg = errorMsg;
                     return result;
                 }
                 token = token.substr(1, token.length() - 1);
                 format4 = true;
             }
-            if (optable[token].exist) {
-                opcode = optable[token];
+            if (opTable[token].exist) {
+                opcode = opTable[token];
                 mnemonic = token;
-                if (MODE == 0) {
+                if (mode == SIC_MODE) {
                     opcode.format = 0;
                     length = 3;
                 } else {
@@ -62,29 +64,29 @@ SICXE parseLine(string line, int loc, STATE state) {
                     }
                     length = opcode.format;
                 }
-                step = OPERAND;
+                step = STEP_OPERAND;
                 break;
             } else if (directiveTable[token].exist) {
                 mnemonic = token;
-                step = OPERAND;
+                step = STEP_OPERAND;
                 break;
             } else {
                 if (label.empty()) {
-                    step = LABEL;
+                    step = STEP_LABEL;
                 } else {
                     string errorMsg = "ERROR(Invalid mnemonic): " + token;
                     cout << Red << errorMsg << RESET << endl;
-                    SICXE result = SICXE(sicxe::ERROR, sicxe::STATEMENT, statement);
+                    SICXE result = SICXE(STATE_ERROR, TYPE_STATEMENT, statement);
                     result.errorMsg = errorMsg;
                     return result;
                 }
             }
         }
-        case LABEL:
+        case STEP_LABEL:
             label = token;
-            step = OPCODE_STEP;
+            step = STEP_OPCODE;
             break;
-        case OPERAND: {
+        case STEP_OPERAND: {
             vector<string> operands = getTokens(token, ',');
             if (operands.size() == 1) {
                 operand1 = operands[0];
@@ -92,11 +94,11 @@ SICXE parseLine(string line, int loc, STATE state) {
                 operand1 = operands[0];
                 operand2 = operands[1];
             }
-            step = END;
+            step = STEP_END;
             break;
         }
         default:
-            step = END;
+            step = STEP_END;
             break;
         }
     }
@@ -111,7 +113,7 @@ void printLine(int line, ofstream &fout, SICXE sourceLine = SICXE(), string erro
     }
     fout << setw(4) << setdec << line * 5 << "  ";
 
-    if (sourceLine.type == sicxe::COMMENT) {
+    if (sourceLine.type == TYPE_COMMENT) {
         fout << setw(6) << setfill(' ') << "";
         fout << setw(15) << setfill(' ') << "";
         fout << sourceLine.statement << endl;
@@ -123,24 +125,24 @@ void printLine(int line, ofstream &fout, SICXE sourceLine = SICXE(), string erro
 
         vector<string> tokens = getTokens(sourceLine.statement, ' ');
         string statement = "";
-        STEP step = LABEL;
+        STEP step = STEP_LABEL;
         while (!tokens.empty()) {
             string token = tokens.front();
             string tokenUpper = tokens.front();
             tokens.erase(tokens.begin());
             transform(tokenUpper.begin(), tokenUpper.end(), tokenUpper.begin(), ::toupper);
             switch (step) {
-            case LABEL:
-                step = OPCODE_STEP;
-                if (symboltable[tokenUpper].exist) {
+            case STEP_LABEL:
+                step = STEP_OPCODE;
+                if (symbolTable[tokenUpper].exist) {
                     fout << setw(15) << left << setfill(' ') << token;
                     break;
                 } else
                     fout << setw(15) << left << setfill(' ') << "";
-            case OPCODE_STEP:
-                step = OPERAND;
+            case STEP_OPCODE:
+                step = STEP_OPERAND;
                 tokenUpper.erase(remove(tokenUpper.begin(), tokenUpper.end(), '+'), tokenUpper.end());
-                if (optable[tokenUpper].exist) {
+                if (opTable[tokenUpper].exist) {
                     fout << setw(10) << left << setfill(' ') << token;
                     break;
                 } else if (directiveTable[tokenUpper].exist) {
@@ -155,7 +157,7 @@ void printLine(int line, ofstream &fout, SICXE sourceLine = SICXE(), string erro
 
         fout << setw(20) << left << setfill(' ') << statement;
 
-        if (sourceLine.state == sicxe::ERROR) {
+        if (sourceLine.state == STATE_ERROR) {
             fout << sourceLine.errorMsg << endl;
         } else {
             fout << sourceLine.objectCode << endl;
@@ -172,7 +174,7 @@ bool pass1(File input) {
     while (getline(fin, inputStr)) {
         if (inputStr[0] == '.') // comment
             continue;
-        sourceLine = parseLine(inputStr, sourceLine.loc + sourceLine.length, sicxe::PASS1);
+        sourceLine = parseLine(inputStr, sourceLine.loc + sourceLine.length, STATE_PASS1);
 
         if (sourceLine.label != "") {
             addSymbol(sourceLine.label, sourceLine.loc);
@@ -196,18 +198,18 @@ bool pass2(File input, File output) {
     int line = 1;
     while (getline(fin, inputStr)) {
         if (inputStr[0] == '.') { // comment
-            printLine(line++, fout, SICXE(PASS2, COMMENT, inputStr));
+            printLine(line++, fout, SICXE(STATE_PASS2, TYPE_COMMENT, inputStr));
             continue;
         }
-        sourceLine = parseLine(inputStr, sourceLine.loc + sourceLine.length, sicxe::PASS2);
+        sourceLine = parseLine(inputStr, sourceLine.loc + sourceLine.length, STATE_PASS2);
         if (sourceLine.mnemonic == "END" || sourceLine.mnemonic == "LTORG") {
             printLine(line++, fout, sourceLine);
-            for (map<string, LITERAL>::iterator it = literaltable.begin(); it != literaltable.end(); it++) {
+            for (map<string, LITERAL>::iterator it = literalTable.begin(); it != literalTable.end(); it++) {
                 LITERAL literal = it->second;
                 if (literal.exist == false || literal.isPrinted == true)
                     continue;
-                literaltable[it->first].isPrinted = true;
-                SICXE literalLine(it->first, PASS2, literal.address, literal.length, "", "", OPCODE(), "", "", literal.objCode);
+                literalTable[it->first].isPrinted = true;
+                SICXE literalLine(it->first, STATE_PASS2, literal.address, literal.length, "", "", OPCODE(), "", "", literal.objCode);
                 printLine(line++, fout, literalLine);
                 loc += literal.length;
             }
@@ -224,9 +226,8 @@ bool pass2(File input, File output) {
 }
 
 int main(int argc, char **argv) {
-    bool isPrint = false;
     File input, output;
-    if (!getOption(argc, argv, input, output, isPrint, MODE))
+    if (!getOption(argc, argv, input, output, mode))
         return 0;
 
     cout << Yellow << "Compiling " << input.name << RESET << endl;
@@ -238,9 +239,6 @@ int main(int argc, char **argv) {
     try {
         pass1(input);
         pass2(input, output);
-
-        if (isPrint)
-            printFile(output.fullPath, output.fullPath, On_Cyan);
 
         cout << Green << "Done!" << RESET << endl;
         cout << "Check the output in the " + output.fullPath << endl;

@@ -1,11 +1,15 @@
 # SIC/SICXE Assembler Document
 
-選擇語言：SIC/SICXE
+## Introduction
+
+This is a SIC/SICXE assembler written in C++.
 
 ## Environment
 
-- 開發平台：`macOS Ventura 13.2.1` `visual studio code`
-- 開發環境：`Apple clang version 14.0.3 (clang-1403.0.22.14.1)`
+- Development Platform: `macOS Ventura 13.2.1` `visual studio code`
+- Development Language: `C++`
+- Compiler: `Apple clang version 14.0.3 (clang-1403.0.22.14.1)`
+- Build Tool: `make`
 
 ## Design
 
@@ -41,23 +45,28 @@ pass2 的流程跟 pass1 有些接近，同樣將指令一行一行讀出來做�
 make clean && make
 ```
 
-or
+or you can compile by yourself:
 
 ```bash
-g++ src/main.cpp -o build/main
+cd src/lib/
+g++ -c utils.cpp -o utils.o
+g++ -c table.cpp -o table.o
+g++ -c sicxe.cpp -o sicxe.o
+cd ..
+g++ main.cpp lib/utils.o lib/table.o lib/sicxe.o -o main
 ```
 
 ### Run
 
 ```bash
-./build/main
+./main
 ```
 
-The default input file is `./src/input.asm` and the result will be in current folder.
-You can also use `build/main` to run with options, for example:
+The default input file is `src/input.asm` and the result will be in current folder.
+You can also run with options, for example:
 
 ```bash
-build/main -i ./src/input.asm -o output.txt -m 1 -p
+./main -i ./input.asm -o ./output.txt -m 1
 ```
 
 ### Options
@@ -65,7 +74,6 @@ build/main -i ./src/input.asm -o output.txt -m 1 -p
 - `-h` : show help
 - `-i [input file]` : input file
 - `-o [output file]` : output file
-- `-mode [ mode ]` : mode (default: 0)
+- `-mode [ mode ]` : mode (default: 1)
   - `0` : SIC
   - `1` : SICXE
-- `-p` : print result
